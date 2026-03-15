@@ -2,13 +2,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebas
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAvUP2je92Dt9S8KmhbQzlv7Jh17nh27dQ",
-  authDomain: "projeto1-d2f46.firebaseapp.com",
-  projectId: "projeto1-d2f46",
-  storageBucket: "projeto1-d2f46.firebasestorage.app",
-  messagingSenderId: "31370509869",
-  appId: "1:31370509869:web:1a2a6a3eca09d1167a82a4",
-  measurementId: "G-5Z9Z1EL6Q7"
+  apiKey: "AIzaSyADb6_S_9_rvSJiUJm-r87U2Ezc6J_OK7Q",
+  authDomain: "caminho-da-liberdade.firebaseapp.com",
+  databaseURL: "https://caminho-da-liberdade-default-rtdb.firebaseio.com",
+  projectId: "caminho-da-liberdade",
+  storageBucket: "caminho-da-liberdade.firebasestorage.app",
+  messagingSenderId: "981735473320",
+  appId: "1:981735473320:web:88030d42a86f7c6848829d"
 };
 
 const fbApp = initializeApp(firebaseConfig);
@@ -34,7 +34,9 @@ const STATE_KEY = 'caminho_liberdade_state';
 const defaultState = {
     successDays: [], // Array of format "YYYY-MM-DD"
     lastMilestoneReached: 0,
-    notes: [] // Array of { id, dateISO, text }
+    notes: [], // Array of { id, dateISO, text }
+    seenCasosIndices: [], // Track indices of seen stories to prevent repetition
+    seenLeituraIndices: [] // Track indices of seen verses
 };
 
 let appState = { ...defaultState };
@@ -85,19 +87,26 @@ const btnCloseCelebration = document.getElementById('btn-close-celebration');
 
 let currentPinInput = '';
 
-// Content Data
+// Content Data (Massive Expansion)
 const casosData = [
-    { title: "Caso de João", content: "João perdeu seu casamento de 5 anos após sua esposa descobrir que ele passava horas consumindo material e escondendo sua situação. O vício afetou sua libido com a parceira real, causando distanciamento permanente e o fim da relação." },
-    { title: "A Ruína Financeira de Marcos", content: "O que começou como vídeos gratuitos evoluiu para salas de bate-papo pagas. Marcos perdeu suas economias, estourou limites de cartão e se endividou pesadamente, perdendo seu apartamento por não conseguir parar o ciclo de recompensa imediata." },
-    { title: "Danos Cerebrais e Ansiedade (Pedro)", content: "Pedro desenvolveu ansiedade social aguda e disfunção erétil induzida pelo vício, sendo incapaz de se relacionar em sua vida real. Seu cérebro foi duramente dessensibilizado pela dopamina constante, necessitando de materiais cada vez mais extremos." },
-    { title: "O Isolamento de Lucas", content: "Aos 22 anos, Lucas trancou a faculdade e parou de sair de casa, passando os dias deitado navegando na internet. A vergonha a letargia o impediram de buscar ajuda até perceber que havia perdido completamente sua rede de amigos." },
-    { title: "A Dupla Vida de Carlos", content: "Carlos tinha um emprego de sucesso, mas usava a internet do trabalho para consumir conteúdos em horário de expediente. Foi descoberto pelo TI e demitido por justa causa, perdendo a carreira que demorou uma década para construir e arruinando sua reputação." },
-    { title: "Disfunção e Divórcio (Felipe)", content: "Mesmo jovem (26 anos), Felipe não conseguia consumar seu casamento na noite de núpcias porque seu cérebro já estava tão programado para imagens pixeladas que ele desenvolveu impotência psicológica irreversível apenas semanas após se casar." },
-    { title: "A Destruição da Autoconfiança (Thiago)", content: "Thiago passou 8 anos preso no vício. Ele parou de se exercitar, desenvolveu gagueira por falta de interação social e se sentia um lixo o tempo todo. A culpa pós-vício destruía qualquer tentativa de ele progredir profissionalmente." },
-    { title: "Depressão Induzida (Mateus)", content: "A superestimulação constante dos receptores de dopamina fez Mateus perder a capacidade de sentir prazer com coisas normais: comida, esportes, conversas. Ele ficou diagnosticado com depressão clínica como resultado direto da exaustão do sistema de recompensa." },
-    { title: "Escravação Digital (Roberto)", content: "A rotina de Roberto era trabalhar e voltar correndo para o quarto e se trancar. Ele não compareceu ao aniversário da própria mãe nem ao hospital quando o pai sofreu um acidente grave. O vazio que ele tentava preencher virtualmente só aumentou o buraco na sua alma." },
-    { title: "A Mente Assombrada (Rafael)", content: "Rafael conta que mesmo nos poucos momentos que ficava longe das telas, imagens nojentas invadiam sua mente involuntariamente. As sinapses cerebrais dele já estavam tão poluídas que sua própria consciência virou seu maior terror, o impedindo de dormir em paz." },
-    { title: "A Perda da Sensibilidade (Gabriel)", content: "O que começou suave logo se tornou pesado. Gabriel se encontrou buscando nichos e tabus bizarros para conseguir a mesma satisfação de antes. Sentiu repulsa de si mesmo ao ver até onde o vício silenciosamente empurrou seus limites morais." }
+    { title: "A Ruína Financeira de Marcos", content: "O que começou como vídeos gratuitos evoluiu para salas de bate-papo pagas. Marcos perdeu suas economias, estourou limites de cartão e se endividou pesadamente, perdendo seu apartamento por não conseguir parar o ciclo de recompensa." },
+    { title: "Danos Cerebrais e Ansiedade (Pedro)", content: "Pedro desenvolveu ansiedade social aguda e disfunção erétil induzida pelo vício. Seu cérebro foi duramente dessensibilizado pela dopamina constante, necessitando de materiais cada vez mais extremos." },
+    { title: "O Isolamento de Lucas", content: "Aos 22 anos, Lucas trancou a faculdade e parou de sair de casa, passando os dias deitado navegando na internet. A vergonha o impediu de buscar ajuda até perceber que havia perdido completamente sua rede de amigos." },
+    { title: "A Dupla Vida de Carlos", content: "Carlos tinha um emprego de sucesso, mas usava a internet do trabalho para consumir conteúdos em horário de expediente. Foi descoberto pelo TI e demitido por justa causa, perdendo a carreira de uma década." },
+    { title: "Disfunção e Divórcio (Felipe)", content: "Mesmo jovem (26 anos), Felipe não conseguia consumar seu casamento porque seu cérebro já estava programado para telas, desenvolvendo impotência psicológica irreversível semanas após se casar." },
+    { title: "A Destruição da Autoconfiança (Thiago)", content: "Thiago passou 8 anos preso no vício. Ele parou de se exercitar, desenvolveu gagueira por falta de interação social e se sentia um lixo o tempo todo. A culpa destruía qualquer tentativa de ele progredir." },
+    { title: "Depressão Induzida (Mateus)", content: "A superestimulação constante dos receptores de dopamina fez Mateus perder a capacidade de sentir prazer com coisas normais: comida, esportes, conversas. Ele foi diagnosticado com depressão clínica como resultado direto." },
+    { title: "Escravidão Digital (Roberto)", content: "O vazio que Roberto tentava preencher o fez não comparecer ao aniversário da própria mãe nem ao hospital quando o pai sofreu um acidente grave. A rotina dele se resumia a correr pro quarto e trancar a porta." },
+    { title: "A Mente Assombrada (Rafael)", content: "Rafael contava que mesmo longe das telas, imagens nojentas invadiam sua mente involuntariamente. As sinapses cerebrais dele já estavam tão poluídas que sua própria consciência virou seu maior terror, o impedindo de dormir em paz." },
+    { title: "A Perda da Sensibilidade (Gabriel)", content: "O que começou suave longo se tornou pesado. Gabriel se encontrou buscando nichos e tabus bizarros para conseguir a mesma satisfação de antes. Sentiu repulsa de si mesmo ao ver até onde o vício empurrou seus limites." },
+    { title: "O Ladrão de Tempo (André)", content: "André calculou que ao longo de 10 anos, ele perdeu cerca de 14.600 horas (equivalente a mais de um ano e meio ininterrupto) consumindo pornografia. Tempo que ele poderia ter usado para aprender idiomas, investir em si próprio ou construir uma família." },
+    { title: "O Relacionamento Falso (Diego)", content: "Diego começou a pagar por interações virtuais personalizadas (OnlyFans), doando mais de $2000 dólares em meses na esperança de que as garotas fossem suas amigas reais. A ilusão estourou e o deixou num estado de solidão extrema." },
+    { title: "Desmotivação e Desistência (Vítor)", content: "A pornografia inundava o cérebro de Vítor com tanta satisfação falsa que ele não sentia a menor vontade de lutar pelos seus sonhos. Tudo parecia difícil e sem cor. Ele abandonou 3 cursos e não conseguia parar em nenhum emprego." },
+    { title: "A Vergonha Familiar (Leonardo)", content: "Leonardo esqueceu seu celular destravado na mesa durante o almoço de domingo. A sobrinha de 6 anos dele pegou pra jogar e viu as abas abertas no navegador. A família inteira se reuniu chocada. A humilhação foi indescritível." },
+    { title: "Deterioração Visual (Caio)", content: "Caio passava tardes inteiras no escuro com o brilho da tela no máximo rolando a página por algo 'novo'. Seus olhos começaram a sofrer, ele desenvolveu secura ocular crônica severa e dores de cabeça latejantes diárias." },
+    { title: "Ansiedade Severa (Marcelo)", content: "O vício instalou um mecanismo em Marcelo onde toda vez que ele ficava estressado, ele corria pra internet. Isso fez com que ele perdesse completamente a habilidade natural de lidar com o estresse da vida adulta, entrando em pânico no trabalho." },
+    { title: "A Fuga da Realidade (Bruno)", content: "Aos 30 anos e morando com os pais, Bruno percebeu que a pornografia o mantinha confortável na sua zona de fracasso. Ela servia de 'anestesia' para ele não precisar enfrentar que a vida estava passando." },
+    { title: "Isolamento Extremo (Renato)", content: "Renato acabou adquirindo tanto pavor de julgamento caso as pessoas descobrissem seu histórico no PC, que ele passou a afastar ativamente amigos íntimos e qualquer potencial namorada, morrendo de medo da intimidade real apontar pra culpa dele." }
 ];
 
 const leituraData = [
@@ -115,11 +124,46 @@ const leituraData = [
     { ref: "Isaías 41:10", text: "Por isso não tema, pois estou com você; não tenha medo, pois sou o seu Deus. Eu o fortalecerei e o ajudarei." },
     { ref: "Efésios 6:11", text: "Vistam toda a armadura de Deus, para poderem ficar firmes contra as ciladas do diabo." },
     { ref: "Provérbios 28:13", text: "Quem esconde os seus pecados não prospera, mas quem os confessa e os abandona encontra misericórdia." },
-    { ref: "João 8:36", text: "Portanto, se o Filho os libertar, vocês de fato serão livres." }
+    { ref: "João 8:36", text: "Portanto, se o Filho os libertar, vocês de fato serão livres." },
+    { ref: "Colossenses 3:5", text: "Assim, façam morrer tudo o que pertence à natureza terrena de vocês: imoralidade sexual, impureza, paixão, desejos maus e a ganância, que é idolatria." },
+    { ref: "Hebreus 12:1", text: "Livremo-nos de tudo o que nos atrapalha e do pecado que nos envolve, e corramos com perseverança a corrida que nos é proposta." },
+    { ref: "Salmos 101:3", text: "Não porei coisa má diante dos meus olhos. Odeio a obra daqueles que se desviam; não se apegará a mim." },
+    { ref: "1 Tessalonicenses 4:3-4", text: "A vontade de Deus é que vocês sejam santificados: abstenham-se da imoralidade sexual. Cada um saiba controlar o seu próprio corpo de maneira santa e honrosa." },
+    { ref: "Tiago 1:12", text: "Feliz é o homem que persevera na provação, porque depois de aprovado receberá a coroa da vida, que Deus prometeu aos que o amam." },
+    { ref: "2 Timóteo 2:22", text: "Fuja dos desejos malignos da juventude e siga a justiça, a fé, o amor e a paz..." },
+    { ref: "Provérbios 6:27-28", text: "Pode alguém colocar fogo no peito sem queimar a roupa? Pode alguém andar sobre brasas sem queimar os pés?" },
+    { ref: "Josué 1:9", text: "Não fui eu que lhe ordenei? Seja forte e corajoso! Não se apavore, nem se desanime, pois o Senhor, o seu Deus, estará com você por onde você andar." },
+    { ref: "1 Coríntios 6:18", text: "Fujam da imoralidade sexual. Todos os outros pecados que alguém comete, fora do corpo os comete; mas quem peca sexualmente, peca contra o seu próprio corpo." },
+    { ref: "Romanos 8:13", text: "Pois se vocês viverem de acordo com a carne, morrerão; mas, se pelo Espírito fizerem morrer os atos do corpo, viverão." }
 ];
 
-function getRandomItem(array) {
-    return array[Math.floor(Math.random() * array.length)];
+function getRandomUnseenItem(array, seenIndicesKey) {
+    // Check if seen configuration exists, create if not
+    if (!appState[seenIndicesKey]) {
+        appState[seenIndicesKey] = [];
+    }
+    
+    // Filter array to get only indices we haven't seen
+    const unseenIndices = [];
+    for (let i = 0; i < array.length; i++) {
+        if (!appState[seenIndicesKey].includes(i)) {
+            unseenIndices.push(i);
+        }
+    }
+    
+    // Se o usuário já viu todas as histórias/versículos, reseta a lista e recomeça!
+    if (unseenIndices.length === 0) {
+        appState[seenIndicesKey] = []; 
+        for (let i = 0; i < array.length; i++) unseenIndices.push(i);
+    }
+    
+    // Pick an unseen index randomly
+    const randomIndex = unseenIndices[Math.floor(Math.random() * unseenIndices.length)];
+    appState[seenIndicesKey].push(randomIndex);
+    
+    saveState(); // Saves the seen tracking to Firebase
+    
+    return array[randomIndex];
 }
 
 // --- Init & State ---
@@ -157,7 +201,9 @@ async function syncFromCloud() {
             appState = {
                 ...defaultState,
                 ...cloudData,
-                notes: cloudData.notes || [] // Backwards compatibility if 'notes' is missing
+                notes: cloudData.notes || [], // Backwards compatibility if 'notes' is missing
+                seenCasosIndices: cloudData.seenCasosIndices || [], 
+                seenLeituraIndices: cloudData.seenLeituraIndices || []
             };
             localStorage.setItem(STATE_KEY, JSON.stringify(appState));
         } else {
@@ -374,7 +420,7 @@ function openModal(title, contentHTML) {
 }
 
 btnCasos.addEventListener('click', () => {
-    const item = getRandomItem(casosData);
+    const item = getRandomUnseenItem(casosData, 'seenCasosIndices');
     const html = `
         <h4 style="color: #f85149;">${item.title}</h4>
         <p>${item.content}</p>
@@ -386,7 +432,7 @@ btnCasos.addEventListener('click', () => {
 });
 
 btnLeitura.addEventListener('click', () => {
-    const item = getRandomItem(leituraData);
+    const item = getRandomUnseenItem(leituraData, 'seenLeituraIndices');
     const html = `
         <i class="fa-solid fa-quote-left" style="font-size: 2rem; color: var(--bg-tertiary); margin-bottom: 1rem; display: block;"></i>
         <p style="font-size: 1.15rem; font-style: italic; line-height: 1.8;">"${item.text}"</p>
