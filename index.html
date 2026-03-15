@@ -87,12 +87,17 @@
                         <span>Leitura</span>
                         <small>Fortalecimento</small>
                     </button>
+                    <button id="btn-naofaz" class="action-btn card-naofaz">
+                        <i class="fa-solid fa-pen-nib"></i>
+                        <span>Não faz</span>
+                        <small>Seu diário</small>
+                    </button>
                 </div>
             </section>
         </main>
     </div>
 
-    <!-- Modal Template -->
+    <!-- Modal Template (Generic) -->
     <div id="modal-overlay" class="modal-overlay">
         <div class="modal">
             <div class="modal-header">
@@ -101,6 +106,25 @@
             </div>
             <div class="modal-body" id="modal-body">
                 <!-- Content injected here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Diary Modal -->
+    <div id="diary-overlay" class="modal-overlay">
+        <div class="modal diary-modal-content">
+            <div class="modal-header">
+                <h3>Diário de Resistência</h3>
+                <button id="btn-close-diary" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="diary-input-area">
+                    <textarea id="diary-textarea" placeholder="O que você está sentindo? Escreva para esvaziar a mente..." rows="4"></textarea>
+                    <button id="btn-save-note" class="primary-btn mt-4"><i class="fa-solid fa-plus"></i> Guardar Anotação</button>
+                </div>
+                <div class="diary-list" id="diary-list">
+                    <!-- Notes injected here -->
+                </div>
             </div>
         </div>
     </div>

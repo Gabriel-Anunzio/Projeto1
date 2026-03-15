@@ -14,16 +14,30 @@ const firebaseConfig = {
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
 
+// Hash Generator for DB ID
+function simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return hash.toString();
+}
+
+const FIXED_PIN = "4861";
+const currentUserHash = simpleHash(FIXED_PIN);
+
 // Data Models
 const STATE_KEY = 'caminho_liberdade_state';
 
 const defaultState = {
     successDays: [], // Array of format "YYYY-MM-DD"
-    lastMilestoneReached: 0
+    lastMilestoneReached: 0,
+    notes: [] // Array of { id, dateISO, text }
 };
 
 let appState = { ...defaultState };
-let currentUserHash = null;
 
 // Elements - Lock Screen
 const lockScreen = document.getElementById('lock-screen');
@@ -53,65 +67,55 @@ const modalOverlay = document.getElementById('modal-overlay');
 const btnCloseModal = document.getElementById('btn-close-modal');
 const modalTitle = document.getElementById('modal-title');
 const modalBody = document.getElementById('modal-body');
+
 const btnCasos = document.getElementById('btn-casos');
 const btnLeitura = document.getElementById('btn-leitura');
+const btnNaofaz = document.getElementById('btn-naofaz');
+
+const diaryOverlay = document.getElementById('diary-overlay');
+const btnCloseDiary = document.getElementById('btn-close-diary');
+const btnSaveNote = document.getElementById('btn-save-note');
+const diaryTextarea = document.getElementById('diary-textarea');
+const diaryList = document.getElementById('diary-list');
 
 // Elements - Celebration
 const celebrationOverlay = document.getElementById('celebration-overlay');
 const celebrationMessage = document.getElementById('celebration-message');
 const btnCloseCelebration = document.getElementById('btn-close-celebration');
 
-// Logic Variables
 let currentPinInput = '';
-let settingUpPin = false;
-let confirmPinMode = false;
-let firstPinEntry = '';
 
 // Content Data
 const casosData = [
-    {
-        title: "Caso de João (Nome Fictício)",
-        content: "João perdeu seu casamento de 5 anos após sua esposa descobrir que ele passava horas na madrugada consumindo material e escondendo sua situação. O vício afetou sua libido com a parceira real, causando distanciamento emocional permanente e o fim da relação."
-    },
-    {
-        title: "A Ruína Financeira de Marcos",
-        content: "O que começou como vídeos gratuitos evoluiu para salas de bate-papo pagas e doações em plataformas online. Marcos perdeu suas economias, estourou limites de cartão e se endividou pesadamente, perdendo seu apartamento por não conseguir parar o ciclo de recompensa imediata."
-    },
-    {
-        title: "Danos Cerebrais e Ansiedade (Pedro)",
-        content: "Pedro desenvolveu ansiedade social aguda e disfunção erétil induzida pelo vício, sendo incapaz de se relacionar em sua vida real. Seu cérebro foi duramente dessensibilizado pela dopamina constante, necessitando de materiais cada vez mais extremos para sentir algo."
-    },
-    {
-        title: "O Isolamento de Lucas",
-        content: "Aos 22 anos, Lucas trancou a faculdade e parou de sair de casa, passando os dias deitado navegando na internet. A vergonha e a letargia o impediram de buscar ajuda até ele perceber que havia perdido completamente sua rede de amigos."
-    }
+    { title: "Caso de João", content: "João perdeu seu casamento de 5 anos após sua esposa descobrir que ele passava horas consumindo material e escondendo sua situação. O vício afetou sua libido com a parceira real, causando distanciamento permanente e o fim da relação." },
+    { title: "A Ruína Financeira de Marcos", content: "O que começou como vídeos gratuitos evoluiu para salas de bate-papo pagas. Marcos perdeu suas economias, estourou limites de cartão e se endividou pesadamente, perdendo seu apartamento por não conseguir parar o ciclo de recompensa imediata." },
+    { title: "Danos Cerebrais e Ansiedade (Pedro)", content: "Pedro desenvolveu ansiedade social aguda e disfunção erétil induzida pelo vício, sendo incapaz de se relacionar em sua vida real. Seu cérebro foi duramente dessensibilizado pela dopamina constante, necessitando de materiais cada vez mais extremos." },
+    { title: "O Isolamento de Lucas", content: "Aos 22 anos, Lucas trancou a faculdade e parou de sair de casa, passando os dias deitado navegando na internet. A vergonha a letargia o impediram de buscar ajuda até perceber que havia perdido completamente sua rede de amigos." },
+    { title: "A Dupla Vida de Carlos", content: "Carlos tinha um emprego de sucesso, mas usava a internet do trabalho para consumir conteúdos em horário de expediente. Foi descoberto pelo TI e demitido por justa causa, perdendo a carreira que demorou uma década para construir e arruinando sua reputação." },
+    { title: "Disfunção e Divórcio (Felipe)", content: "Mesmo jovem (26 anos), Felipe não conseguia consumar seu casamento na noite de núpcias porque seu cérebro já estava tão programado para imagens pixeladas que ele desenvolveu impotência psicológica irreversível apenas semanas após se casar." },
+    { title: "A Destruição da Autoconfiança (Thiago)", content: "Thiago passou 8 anos preso no vício. Ele parou de se exercitar, desenvolveu gagueira por falta de interação social e se sentia um lixo o tempo todo. A culpa pós-vício destruía qualquer tentativa de ele progredir profissionalmente." },
+    { title: "Depressão Induzida (Mateus)", content: "A superestimulação constante dos receptores de dopamina fez Mateus perder a capacidade de sentir prazer com coisas normais: comida, esportes, conversas. Ele ficou diagnosticado com depressão clínica como resultado direto da exaustão do sistema de recompensa." },
+    { title: "Escravação Digital (Roberto)", content: "A rotina de Roberto era trabalhar e voltar correndo para o quarto e se trancar. Ele não compareceu ao aniversário da própria mãe nem ao hospital quando o pai sofreu um acidente grave. O vazio que ele tentava preencher virtualmente só aumentou o buraco na sua alma." },
+    { title: "A Mente Assombrada (Rafael)", content: "Rafael conta que mesmo nos poucos momentos que ficava longe das telas, imagens nojentas invadiam sua mente involuntariamente. As sinapses cerebrais dele já estavam tão poluídas que sua própria consciência virou seu maior terror, o impedindo de dormir em paz." },
+    { title: "A Perda da Sensibilidade (Gabriel)", content: "O que começou suave logo se tornou pesado. Gabriel se encontrou buscando nichos e tabus bizarros para conseguir a mesma satisfação de antes. Sentiu repulsa de si mesmo ao ver até onde o vício silenciosamente empurrou seus limites morais." }
 ];
 
 const leituraData = [
-    {
-        ref: "1 Coríntios 10:13",
-        text: "Não sobreveio a vocês tentação que não fosse comum aos homens. E Deus é fiel; ele não permitirá que vocês sejam tentados além do que podem suportar. Mas, quando forem tentados, ele lhes providenciará um escape, para que o possam suportar."
-    },
-    {
-        ref: "Salmos 119:9",
-        text: "Como pode o jovem manter pura a sua conduta? Vivendo de acordo com a tua palavra."
-    },
-    {
-        ref: "Filipenses 4:13",
-        text: "Posso todas as coisas naquele que me fortalece."
-    },
-    {
-        ref: "Provérbios 4:23",
-        text: "Acima de tudo, guarde o seu coração, pois dele depende toda a sua vida."
-    },
-    {
-        ref: "Tiago 4:7",
-        text: "Portanto, submetam-se a Deus. Resistam ao Diabo, e ele fugirá de vocês."
-    },
-    {
-        ref: "Romanos 12:2",
-        text: "Não se amoldem ao padrão deste mundo, mas transformem-se pela renovação da sua mente, para que sejam capazes de experimentar e comprovar a boa, agradável e perfeita vontade de Deus."
-    }
+    { ref: "1 Coríntios 10:13", text: "Não sobreveio a vocês tentação que não fosse comum aos homens. E Deus é fiel; ele não permitirá que vocês sejam tentados além do que podem suportar. Mas, quando forem tentados, ele lhes providenciará um escape." },
+    { ref: "Salmos 119:9", text: "Como pode o jovem manter pura a sua conduta? Vivendo de acordo com a tua palavra." },
+    { ref: "Filipenses 4:13", text: "Posso todas as coisas naquele que me fortalece." },
+    { ref: "Provérbios 4:23", text: "Acima de tudo, guarde o seu coração, pois dele depende toda a sua vida." },
+    { ref: "Tiago 4:7", text: "Portanto, submetam-se a Deus. Resistam ao Diabo, e ele fugirá de vocês." },
+    { ref: "Romanos 12:2", text: "Não se amoldem ao padrão deste mundo, mas transformem-se pela renovação da sua mente..." },
+    { ref: "Mateus 5:8", text: "Bem-aventurados os puros de coração, pois verão a Deus." },
+    { ref: "1 Pedro 5:8", text: "Sejam sóbrios e vigiem. O diabo, o inimigo de vocês, anda ao redor como leão, rugindo e procurando a quem possa devorar." },
+    { ref: "Gálatas 5:16", text: "Por isso digo: vivam pelo Espírito, e de modo nenhum satisfarão os desejos da carne." },
+    { ref: "Salmos 51:10", text: "Cria em mim um coração puro, ó Deus, e renova dentro de mim um espírito estável." },
+    { ref: "Mateus 26:41", text: "Vigiem e orem para que não caiam em tentação. O espírito está pronto, mas a carne é fraca." },
+    { ref: "Isaías 41:10", text: "Por isso não tema, pois estou com você; não tenha medo, pois sou o seu Deus. Eu o fortalecerei e o ajudarei." },
+    { ref: "Efésios 6:11", text: "Vistam toda a armadura de Deus, para poderem ficar firmes contra as ciladas do diabo." },
+    { ref: "Provérbios 28:13", text: "Quem esconde os seus pecados não prospera, mas quem os confessa e os abandona encontra misericórdia." },
+    { ref: "João 8:36", text: "Portanto, se o Filho os libertar, vocês de fato serão livres." }
 ];
 
 function getRandomItem(array) {
@@ -119,19 +123,15 @@ function getRandomItem(array) {
 }
 
 // --- Init & State ---
-function initApp() {
-    const savedState = localStorage.getItem(STATE_KEY);
-    if (savedState) {
-        try {
-            appState = JSON.parse(savedState);
-        } catch(e) {
-            console.error("Erro ao carregar os dados:", e);
-        }
-    }
+async function initApp() {
+    // Hide reset since PIN is now fixed
+    btnResetPassword.style.display = 'none';
 
-    const savedPinHash = localStorage.getItem('saved_pin_hash');
-    if (!savedPinHash) {
-        setupInitialPin();
+    // Se já estiver logado (salvo na sessão atual no localstorage como validado)
+    if (localStorage.getItem('is_logged_in') === 'true') {
+        lockMessage.textContent = "Sincronizando com a nuvem...";
+        await syncFromCloud();
+        enterApp();
     } else {
         showLockScreen();
     }
@@ -141,25 +141,27 @@ function saveState() {
     localStorage.setItem(STATE_KEY, JSON.stringify(appState));
     
     // Save to Firestore
-    if (currentUserHash) {
-        setDoc(doc(db, "calendars", currentUserHash), appState).catch(e => {
-            console.error("Erro ao salvar na nuvem:", e);
-        });
-    }
+    setDoc(doc(db, "calendars", currentUserHash), appState).catch(e => {
+        console.error("Erro ao salvar na nuvem:", e);
+    });
 
     updateStreak();
 }
 
-async function syncFromCloud(hash) {
-    lockMessage.textContent = "Sincronizando com a nuvem...";
+async function syncFromCloud() {
     try {
-        const docRef = doc(db, "calendars", hash);
+        const docRef = doc(db, "calendars", currentUserHash);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-            appState = docSnap.data();
+            const cloudData = docSnap.data();
+            appState = {
+                ...defaultState,
+                ...cloudData,
+                notes: cloudData.notes || [] // Backwards compatibility if 'notes' is missing
+            };
             localStorage.setItem(STATE_KEY, JSON.stringify(appState));
         } else {
-            // New user on cloud, let's sync local to cloud
+            // New user on cloud
             await setDoc(docRef, appState);
         }
     } catch (e) {
@@ -168,14 +170,9 @@ async function syncFromCloud(hash) {
 }
 
 // --- Lock Screen Logic ---
-
 function updatePinDisplay() {
     pinDots.forEach((dot, index) => {
-        if (index < currentPinInput.length) {
-            dot.classList.add('filled');
-        } else {
-            dot.classList.remove('filled');
-        }
+        dot.classList.toggle('filled', index < currentPinInput.length);
     });
 }
 
@@ -195,23 +192,14 @@ function handleClear() {
     updatePinDisplay();
 }
 
-// Hash simples
-function simpleHash(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-    }
-    return hash.toString();
-}
-
 function showError() {
     pinDisplay.classList.add('error');
+    lockMessage.textContent = "Senha Incorreta.";
     if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     setTimeout(() => {
         pinDisplay.classList.remove('error');
         currentPinInput = '';
+        lockMessage.textContent = "Digite sua senha para entrar";
         updatePinDisplay();
     }, 450);
 }
@@ -219,62 +207,21 @@ function showError() {
 async function handleEnter() {
     if (currentPinInput.length !== 4) return;
 
-    if (settingUpPin) {
-        if (!confirmPinMode) {
-            firstPinEntry = currentPinInput;
-            currentPinInput = '';
-            confirmPinMode = true;
-            lockMessage.textContent = "Confirme sua senha";
-            updatePinDisplay();
-        } else {
-            if (currentPinInput === firstPinEntry) {
-                currentUserHash = simpleHash(currentPinInput);
-                localStorage.setItem('saved_pin_hash', currentUserHash);
-                
-                await syncFromCloud(currentUserHash);
-                enterApp();
-            } else {
-                showError();
-                lockMessage.textContent = "Senhas não coincidem. Tente de novo.";
-                confirmPinMode = false;
-                firstPinEntry = '';
-                setTimeout(() => {
-                    lockMessage.textContent = "Crie uma senha de 4 dígitos";
-                }, 1500);
-            }
-        }
+    if (currentPinInput === FIXED_PIN) {
+        localStorage.setItem('is_logged_in', 'true');
+        lockMessage.textContent = "Entrando...";
+        await syncFromCloud();
+        enterApp();
     } else {
-        // Verification Mode
-        const inputHash = simpleHash(currentPinInput);
-        if (inputHash === localStorage.getItem('saved_pin_hash')) {
-            currentUserHash = inputHash;
-            await syncFromCloud(currentUserHash);
-            enterApp();
-        } else {
-            showError();
-        }
+        showError();
     }
 }
 
-function setupInitialPin() {
-    settingUpPin = true;
-    confirmPinMode = false;
-    currentPinInput = '';
-    firstPinEntry = '';
-    lockScreen.classList.add('active');
-    mainScreen.classList.remove('active');
-    lockMessage.textContent = "Crie uma senha de 4 dígitos para privacidade";
-    btnResetPassword.style.display = 'none';
-    updatePinDisplay();
-}
-
 function showLockScreen() {
-    settingUpPin = false;
     currentPinInput = '';
     lockScreen.classList.add('active');
     mainScreen.classList.remove('active');
     lockMessage.textContent = "Digite sua senha para entrar";
-    btnResetPassword.style.display = 'block';
     updatePinDisplay();
 }
 
@@ -286,23 +233,15 @@ function enterApp() {
 }
 
 keys.forEach(key => {
-    key.addEventListener('click', () => {
-        handleKeyClick(key.getAttribute('data-key'));
-    });
+    key.addEventListener('click', () => { handleKeyClick(key.getAttribute('data-key')); });
 });
 btnClear.addEventListener('click', handleClear);
 btnEnter.addEventListener('click', handleEnter);
 
-btnResetPassword.addEventListener('click', () => {
-    if(confirm("Tem certeza? Isso apagará os dados deste dispositivo. Seus dados na nuvem com este PIN continuarão salvos.")) {
-        appState = { ...defaultState };
-        localStorage.removeItem(STATE_KEY);
-        localStorage.removeItem('saved_pin_hash');
-        setupInitialPin();
-    }
+btnLock.addEventListener('click', () => {
+    localStorage.removeItem('is_logged_in');
+    showLockScreen();
 });
-
-btnLock.addEventListener('click', showLockScreen);
 
 // --- Calendar Logic ---
 
@@ -327,7 +266,7 @@ function renderCalendar() {
 
     const todayDateStr = formatDateString(currentDateObj.getFullYear(), currentDateObj.getMonth(), currentDateObj.getDate());
 
-    // Fill empty cells before first day
+    // Fill empty cells
     for (let i = 0; i < firstDay; i++) {
         const emptyCell = document.createElement('div');
         emptyCell.className = 'day-cell empty';
@@ -342,13 +281,8 @@ function renderCalendar() {
 
         const dateStr = formatDateString(displayYear, displayMonth, day);
         
-        if (dateStr === todayDateStr) {
-            cell.classList.add('today');
-        }
-
-        if (appState.successDays.includes(dateStr)) {
-            cell.classList.add('success');
-        }
+        if (dateStr === todayDateStr) cell.classList.add('today');
+        if (appState.successDays.includes(dateStr)) cell.classList.add('success');
 
         if (isFutureDate(displayYear, displayMonth, day)) {
             cell.classList.add('future');
@@ -363,9 +297,7 @@ function renderCalendar() {
 function toggleDay(dateStr, cellElement) {
     const index = appState.successDays.indexOf(dateStr);
     
-    if (navigator.vibrate) {
-        navigator.vibrate(50);
-    }
+    if (navigator.vibrate) navigator.vibrate(50);
 
     if (index === -1) {
         appState.successDays.push(dateStr);
@@ -375,6 +307,7 @@ function toggleDay(dateStr, cellElement) {
         cellElement.classList.remove('success');
     }
     
+    // Sort reverse chronological
     appState.successDays.sort((a,b) => b.localeCompare(a));
     
     saveState();
@@ -382,98 +315,51 @@ function toggleDay(dateStr, cellElement) {
 
 btnPrevMonth.addEventListener('click', () => {
     displayMonth--;
-    if (displayMonth < 0) {
-        displayMonth = 11;
-        displayYear--;
-    }
+    if (displayMonth < 0) { displayMonth = 11; displayYear--; }
     renderCalendar();
 });
 
 btnNextMonth.addEventListener('click', () => {
     displayMonth++;
-    if (displayMonth > 11) {
-        displayMonth = 0;
-        displayYear++;
-    }
+    if (displayMonth > 11) { displayMonth = 0; displayYear++; }
     renderCalendar();
 });
 
-// --- Streak and Milestones Logic ---
+// --- Total Days & Custom Milestones Logic ---
 function updateStreak() {
-    if (!appState.successDays || appState.successDays.length === 0) {
-        currentStreakDisplay.textContent = "0 dias";
-        appState.lastMilestoneReached = 0;
-        return;
-    }
+    // Agora o aplicativo apenas contabiliza o TOTAL de dias que você venceu! Sem resetar.
+    const totalDays = Array.isArray(appState.successDays) ? appState.successDays.length : 0;
     
-    const sortedDates = appState.successDays.map(d => {
-        const parts = d.split('-');
-        return new Date(parts[0], parts[1] - 1, parts[2]);
-    }).sort((a, b) => b.getTime() - a.getTime());
+    currentStreakDisplay.textContent = `${totalDays} dia${totalDays !== 1 ? 's' : ''}`;
     
-    const today = new Date(currentDateObj.getFullYear(), currentDateObj.getMonth(), currentDateObj.getDate());
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const latestDate = sortedDates[0];
-
-    // Se o último marco for mais velho que ontem, a ofensiva zerou
-    if (latestDate.getTime() !== today.getTime() && latestDate.getTime() !== yesterday.getTime()) {
-        currentStreakDisplay.textContent = "0 dias";
-        appState.lastMilestoneReached = 0;
-        
-        if(currentUserHash) {
-            setDoc(doc(db, "calendars", currentUserHash), appState).catch(console.error);
-        }
-        localStorage.setItem(STATE_KEY, JSON.stringify(appState));
-        return;
+    if (totalDays > 0) {
+        checkMilestones(totalDays);
     }
-
-    let streak = 1;
-    for (let i = 0; i < sortedDates.length - 1; i++) {
-        const curr = sortedDates[i];
-        const next = sortedDates[i+1];
-        
-        const diffTime = curr.getTime() - next.getTime();
-        const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
-        
-        if (diffDays === 1) {
-            streak++;
-        } else {
-            break;
-        }
-    }
-
-    currentStreakDisplay.textContent = `${streak} dia${streak !== 1 ? 's' : ''}`;
-    checkMilestones(streak);
 }
 
-function checkMilestones(streak) {
-    const milestones = [10, 30, 90, 180, 365, 500, 1000];
-    const reached = milestones.filter(m => streak >= m);
+function checkMilestones(totalDays) {
+    // Custom incentive milestones defined here
+    const milestones = [1, 2, 3, 5, 7, 10, 15, 21, 30, 45, 60, 90, 120, 150, 180, 240, 300, 365, 500, 1000];
+    
+    const reached = milestones.filter(m => totalDays >= m);
     if(reached.length === 0) return;
     
     const maxMilestone = Math.max(...reached);
 
-    if (maxMilestone > appState.lastMilestoneReached) {
+    if (maxMilestone > (appState.lastMilestoneReached || 0)) {
         appState.lastMilestoneReached = maxMilestone;
-        
         localStorage.setItem(STATE_KEY, JSON.stringify(appState));
-        if (currentUserHash) {
-            setDoc(doc(db, "calendars", currentUserHash), appState).catch(console.error);
-        }
+        setDoc(doc(db, "calendars", currentUserHash), appState).catch(console.error);
         
         showCelebration(maxMilestone);
     }
 }
 
 function showCelebration(days) {
-    celebrationMessage.textContent = `Que incrível! Você alcançou a marca de ${days} dias de purificação e disciplina. Seu esforço está construindo um caráter inabalável! Continue firme!`;
+    celebrationMessage.textContent = `Você conquistou a impressionante marca de ${days} dia(s) totais limpo! A verdadeira mudança se dá um dia de cada vez. Tenha orgulho do guerreiro que está se tornando.`;
     celebrationOverlay.classList.add('active');
     
-    if(navigator.vibrate) {
-        navigator.vibrate([150, 50, 150, 50, 300]);
-    }
+    if(navigator.vibrate) navigator.vibrate([150, 50, 150, 50, 300]);
 }
 
 btnCloseCelebration.addEventListener('click', () => {
@@ -493,7 +379,7 @@ btnCasos.addEventListener('click', () => {
         <h4 style="color: #f85149;">${item.title}</h4>
         <p>${item.content}</p>
         <div style="margin-top: 2rem; font-size: 0.85rem; color: var(--text-secondary); text-align: center; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-            * Histórias baseadas em consequências reais da dependência. O objetivo aqui é te lembrar do que você está evitando.
+            * Acordar para a realidade é doloroso, mas muito menos pior do que viver essas consequências amargamente.
         </div>
     `;
     openModal("Consequência Real", html);
@@ -514,10 +400,68 @@ btnCloseModal.addEventListener('click', () => {
 });
 
 modalOverlay.addEventListener('click', (e) => {
-    if(e.target === modalOverlay) {
-        modalOverlay.classList.remove('active');
-    }
+    if(e.target === modalOverlay) modalOverlay.classList.remove('active');
+});
+diaryOverlay.addEventListener('click', (e) => {
+    if(e.target === diaryOverlay) diaryOverlay.classList.remove('active');
 });
 
-// App Entry Point
+// --- Diary (Não Faz) Logic ---
+function openDiary() {
+    renderDiaryNotes();
+    diaryTextarea.value = '';
+    diaryOverlay.classList.add('active');
+}
+
+function renderDiaryNotes() {
+    diaryList.innerHTML = '';
+    
+    if (!appState.notes || appState.notes.length === 0) {
+        diaryList.innerHTML = '<p style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">As suas anotações aparecerão aqui. Ninguém além de você pode lê-las.</p>';
+        return;
+    }
+    
+    // Sort latest first
+    const sortedNotes = [...appState.notes].sort((a,b) => new Date(b.dateISO) - new Date(a.dateISO));
+    
+    sortedNotes.forEach(note => {
+        const d = new Date(note.dateISO);
+        const dateString = `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}`;
+        
+        const noteDiv = document.createElement('div');
+        noteDiv.className = 'diary-note';
+        
+        noteDiv.innerHTML = `
+            <div class="diary-note-header">
+                <span><i class="fa-regular fa-clock"></i> ${dateString}</span>
+            </div>
+            <div class="diary-note-text">${note.text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+        `;
+        diaryList.appendChild(noteDiv);
+    });
+}
+
+btnNaofaz.addEventListener('click', openDiary);
+btnCloseDiary.addEventListener('click', () => diaryOverlay.classList.remove('active'));
+
+btnSaveNote.addEventListener('click', () => {
+    const text = diaryTextarea.value.trim();
+    if (!text) return;
+    
+    if (!appState.notes) appState.notes = [];
+    
+    appState.notes.push({
+        id: Date.now().toString(),
+        dateISO: new Date().toISOString(),
+        text: text
+    });
+    
+    if (navigator.vibrate) navigator.vibrate(50);
+    saveState();
+    
+    diaryTextarea.value = '';
+    renderDiaryNotes();
+});
+
+// Start the App
 document.addEventListener('DOMContentLoaded', initApp);
