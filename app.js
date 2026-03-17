@@ -35,6 +35,7 @@ const defaultState = {
     successDays: [], // Array of format "YYYY-MM-DD"
     lastMilestoneReached: 0,
     notes: [], // Array of { id, dateISO, text }
+    notesNaoFaca: [], // Array of { id, dateISO, text }
     seenCasosIndices: [], // Track indices of seen stories to prevent repetition
     seenLeituraIndices: [] // Track indices of seen verses
 };
@@ -80,6 +81,7 @@ const btnCloseDiary = document.getElementById('btn-close-diary');
 const btnSaveNote = document.getElementById('btn-save-note');
 const diaryTextarea = document.getElementById('diary-textarea');
 const diaryList = document.getElementById('diary-list');
+const diaryTitle = document.getElementById('diary-title');
 
 // Elements - Celebration
 const celebrationOverlay = document.getElementById('celebration-overlay');
@@ -203,6 +205,7 @@ async function syncFromCloud() {
                 ...defaultState,
                 ...cloudData,
                 notes: cloudData.notes || [], // Backwards compatibility if 'notes' is missing
+                notesNaoFaca: cloudData.notesNaoFaca || [],
                 seenCasosIndices: cloudData.seenCasosIndices || [], 
                 seenLeituraIndices: cloudData.seenLeituraIndices || []
             };
@@ -453,8 +456,20 @@ diaryOverlay.addEventListener('click', (e) => {
     if(e.target === diaryOverlay) diaryOverlay.classList.remove('active');
 });
 
-// --- Diary (Não Faz) Logic ---
-function openDiary() {
+// --- Diary (Não Faz / Arrependa) Logic ---
+let currentDiaryMode = 'arrependa';
+
+function openDiary(mode) {
+    currentDiaryMode = mode;
+    
+    if (mode === 'arrependa') {
+        diaryTitle.textContent = 'Diário de Arrependimento';
+        diaryTextarea.placeholder = 'O que você está sentindo? Escreva para esvaziar a mente...';
+    } else {
+        diaryTitle.textContent = 'Motivos para Não Fazer';
+        diaryTextarea.placeholder = 'Por que você não vai fazer isso? Escreva seus motivos para resistir...';
+    }
+    
     renderDiaryNotes();
     diaryTextarea.value = '';
     diaryOverlay.classList.add('active');
@@ -463,13 +478,15 @@ function openDiary() {
 function renderDiaryNotes() {
     diaryList.innerHTML = '';
     
-    if (!appState.notes || appState.notes.length === 0) {
+    const activeNotes = currentDiaryMode === 'arrependa' ? appState.notes : (appState.notesNaoFaca || []);
+    
+    if (!activeNotes || activeNotes.length === 0) {
         diaryList.innerHTML = '<p style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">As suas anotações aparecerão aqui. Ninguém além de você pode lê-las.</p>';
         return;
     }
     
     // Sort latest first
-    const sortedNotes = [...appState.notes].sort((a,b) => new Date(b.dateISO) - new Date(a.dateISO));
+    const sortedNotes = [...activeNotes].sort((a,b) => new Date(b.dateISO) - new Date(a.dateISO));
     
     sortedNotes.forEach(note => {
         const d = new Date(note.dateISO);
@@ -489,12 +506,10 @@ function renderDiaryNotes() {
 }
 
 btnNaofaz.addEventListener('click', () => {
-    diaryTextarea.placeholder = "O que você está sentindo? Escreva para esvaziar a mente...";
-    openDiary();
+    openDiary('arrependa');
 });
 btnNaofaca.addEventListener('click', () => {
-    diaryTextarea.placeholder = "Por que você não vai fazer isso? Escreva seus motivos para resistir...";
-    openDiary();
+    openDiary('naofaca');
 });
 btnCloseDiary.addEventListener('click', () => diaryOverlay.classList.remove('active'));
 
@@ -502,13 +517,21 @@ btnSaveNote.addEventListener('click', () => {
     const text = diaryTextarea.value.trim();
     if (!text) return;
     
-    if (!appState.notes) appState.notes = [];
-    
-    appState.notes.push({
-        id: Date.now().toString(),
-        dateISO: new Date().toISOString(),
-        text: text
-    });
+    if (currentDiaryMode === 'arrependa') {
+        if (!appState.notes) appState.notes = [];
+        appState.notes.push({
+            id: Date.now().toString(),
+            dateISO: new Date().toISOString(),
+            text: text
+        });
+    } else {
+        if (!appState.notesNaoFaca) appState.notesNaoFaca = [];
+        appState.notesNaoFaca.push({
+            id: Date.now().toString(),
+            dateISO: new Date().toISOString(),
+            text: text
+        });
+    }
     
     if (navigator.vibrate) navigator.vibrate(50);
     saveState();
