@@ -12,6 +12,7 @@
     
     --card-casos: #3d1b1b;
     --card-leitura: #15293d;
+    --card-naofaca: #3d2c15;
     
     --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
@@ -302,7 +303,7 @@ main {
 
 .action-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 0.8rem;
 }
 
@@ -350,6 +351,11 @@ main {
 .card-naofaz {
     background: linear-gradient(145deg, #3d1b38, var(--bg-secondary));
     color: #e082ff;
+}
+
+.card-naofaca {
+    background: linear-gradient(145deg, var(--card-naofaca), var(--bg-secondary));
+    color: #ffb74d;
 }
 
 /* --- Modals and Overlays --- */

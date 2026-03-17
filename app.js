@@ -73,6 +73,7 @@ const modalBody = document.getElementById('modal-body');
 const btnCasos = document.getElementById('btn-casos');
 const btnLeitura = document.getElementById('btn-leitura');
 const btnNaofaz = document.getElementById('btn-naofaz');
+const btnNaofaca = document.getElementById('btn-naofaca');
 
 const diaryOverlay = document.getElementById('diary-overlay');
 const btnCloseDiary = document.getElementById('btn-close-diary');
@@ -487,7 +488,14 @@ function renderDiaryNotes() {
     });
 }
 
-btnNaofaz.addEventListener('click', openDiary);
+btnNaofaz.addEventListener('click', () => {
+    diaryTextarea.placeholder = "O que você está sentindo? Escreva para esvaziar a mente...";
+    openDiary();
+});
+btnNaofaca.addEventListener('click', () => {
+    diaryTextarea.placeholder = "Por que você não vai fazer isso? Escreva seus motivos para resistir...";
+    openDiary();
+});
 btnCloseDiary.addEventListener('click', () => diaryOverlay.classList.remove('active'));
 
 btnSaveNote.addEventListener('click', () => {
